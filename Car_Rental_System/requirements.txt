@@ -1,0 +1,14 @@
+Dependencies installed:-
+
+# For MySQL connection
+pip install mysql-connector-python
+
+
+# For password hashing
+pip install bcrypt
+
+To install all the dependencies, run the following command:
+
+```bash
+pip install -r requirements.txt
+```
