@@ -144,9 +144,12 @@ Car_Rental_System/
 ```bash
 pip install -r requirements.txt
 
-3) Configure DB
+```
+### 3) Configure DB
 
-Edit config/db_config.py to match your local MySQL credentials:
+- Edit config/db_config.py to match your local MySQL credentials:
+
+```bash
 
 # config/db_config.py
 import mysql.connector
@@ -159,20 +162,22 @@ def get_db_connection():
         database="car_rental"
     )
 
-4) Create schema & seed data
+```
+
+### 4) Create schema & seed data
 
 Copy /db/schema.sql and /db/seed.sql from the sections below into files and run them in MySQL Workbench or CLI:
 
 mysql -u root -p < db/schema.sql
 mysql -u root -p < db/seed.sql
 
-5) Run the app (CLI)
+### 5) Run the app (CLI)
 python main.py
 
 
 If you prefer package-style execution, add __init__.py files and run python -m Car_Rental_System.main.
 
-🕹️ Usage
+## 🕹️ Usage
 Main Menu (CLI)
 
 Register → creates a customer/admin (admin typically seeded or promoted)
@@ -201,7 +206,8 @@ Show QR for approved booking (reprint ASCII/PNG path)
 
 Passwords are securely hashed with bcrypt.
 
-🧱 Database Schema
+## 🧱 Database Schema
+```bash
 
 DB: car_rental
 Tables: users, cars, bookings, payments, booking_qr_codes and view v_available_cars.
@@ -301,10 +307,10 @@ CREATE OR REPLACE VIEW v_available_cars AS
 SELECT car_id, brand, model, year, mileage, daily_rate
 FROM cars
 WHERE available_now = TRUE;
+```
+### 🌱 Seed Data
 
-🌱 Seed Data
-
-Place this as db/seed.sql and run after schema.sql:
+```bash
 
 USE car_rental;
 
@@ -352,45 +358,45 @@ INSERT INTO booking_qr_codes (booking_id, qr_token, expires_at)
 VALUES (1, 'QR-BOOKING-1-DEMO-TOKEN-ABC123', DATE_ADD(NOW(), INTERVAL 7 DAY));
 
 COMMIT;
+```
+## ✅ Validation Rules
 
-✅ Validation Rules
+- Email: valid format, unique
 
-Email: valid format, unique
+- Password: ≥ 8 characters, at least 1 uppercase & 1 number (bcrypt hashed on insert)
 
-Password: ≥ 8 characters, at least 1 uppercase & 1 number (bcrypt hashed on insert)
+- Role: customer (default) or admin
 
-Role: customer (default) or admin
+- Booking dates: end_date >= start_date (also validated in service layer)
 
-Booking dates: end_date >= start_date (also validated in service layer)
+- Availability: overlap checks for pending/approved/active bookings
 
-Availability: overlap checks for pending/approved/active bookings
+## 🐞 Known Issues
 
-🐞 Known Issues
+- CLI-based UX (no web UI)
 
-CLI-based UX (no web UI)
+- QR token “scan” is manual (paste token); can be replaced with a real scanner/app later
 
-QR token “scan” is manual (paste token); can be replaced with a real scanner/app later
+- CHECK constraints require MySQL 8.0+ for enforcement (logic also handled in Python)
 
-CHECK constraints require MySQL 8.0+ for enforcement (logic also handled in Python)
+## 📜 License
 
-📜 License
+- MIT License — see LICENSE.
 
-MIT License — see LICENSE.
+## 👨‍💻 Credits
 
-👨‍💻 Credits
-
-Developed by Parvez (Software Engineer) — 2025
+- Developed by Parvez (Software Engineer) — 2025
 
 
 ---
 
 ## 📦 `requirements.txt`
 
-Create this file in the repo root:
+- Create this file in the repo root:
 
-```txt
+```bash
 mysql-connector-python>=8.3.0
 bcrypt>=4.1.2
 qrcode>=7.4.2
 Pillow>=10.3.0
-
+```
