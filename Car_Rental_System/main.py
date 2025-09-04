@@ -1,6 +1,6 @@
 from .controllers.user_controller import UserController
-from .controllers.admin_controller import AdminController
-from .controllers.customer_controller import CustomerController
+from .pages.admin_Dashboard import AdminDashboard
+from .pages.customer_Dashboard import CustomerDashboard
 
 def main():
     print("=== 🚗 Car Rental System ===")
@@ -20,9 +20,9 @@ def main():
             if result and result.get("success"):
                 role = result.get("role")
                 if role == "admin":
-                    AdminController.dashboard()
+                    AdminDashboard.dashboard()
                 elif role == "customer":
-                    CustomerController.dashboard()
+                    CustomerDashboard.dashboard()
                 else:
                     print("❌ Unknown role. Contact system administrator.")
             else:

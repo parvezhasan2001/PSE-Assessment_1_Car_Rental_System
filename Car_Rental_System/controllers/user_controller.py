@@ -1,3 +1,6 @@
+import token
+from Car_Rental_System.services.qrcode_service import QRService
+from Car_Rental_System.utils.qrcode_utils import print_qr_ascii
 from ..services.userservice import UserService
 from ..config.database import get_connection
 
@@ -34,4 +37,5 @@ class UserController:
             print("❌", result["message"])
 
         return result
+
 

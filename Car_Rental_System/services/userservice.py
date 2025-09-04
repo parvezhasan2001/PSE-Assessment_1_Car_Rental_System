@@ -89,3 +89,35 @@ class UserService:
             if conn and conn.is_connected():
                 conn.close()
 
+    @staticmethod
+    def delete_user(admin_role: str, user_id: int):
+        """Only admins should call this: deletes a customer (cascades bookings)."""
+        if admin_role != "admin":
+            return {"success": False, "message": "Forbidden: admin only"}
+
+        conn, cur = None, None
+        try:
+            conn = get_connection()
+            if not conn or not conn.is_connected():
+                return {"success": False, "message": "DB connection failed"}
+            cur = conn.cursor(dictionary=True)
+
+            # Don’t allow deleting another admin accidentally
+            cur.execute("SELECT role FROM users WHERE user_id=%s", (user_id,))
+            row = cur.fetchone()
+            if not row:
+                return {"success": False, "message": "User not found"}
+            if row["role"] == "admin":
+                return {"success": False, "message": "Refusing to delete an admin"}
+
+            cur.execute("DELETE FROM users WHERE user_id=%s", (user_id,))
+            conn.commit()
+            if cur.rowcount == 0:
+                return {"success": False, "message": "User not found / not deleted"}
+            return {"success": True, "message": "User deleted"}
+        except Exception as e:
+            return {"success": False, "message": f"Delete user error: {e}"}
+        finally:
+            if cur: cur.close()
+            if conn and conn.is_connected(): conn.close()
+
