@@ -99,6 +99,7 @@ Why it helps:
 ---
 
 ## 🗂️ Project Structure
+```text
 Car_Rental_System/
 │── main.py
 │── config/
@@ -130,7 +131,7 @@ Car_Rental_System/
 │ ├── activity-diagram.png
 │ └── sequence-diagram.png
 └── requirements.txt
-
+```
 
 ---
 
