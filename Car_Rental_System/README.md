@@ -60,16 +60,16 @@ This project fulfills:
 ## 🏗️ System Architecture
 
 ### UML Class Diagram
-![UML Class Diagram](./diagrams/class-diagram.png)
+![UML Class Diagram](../diagrams/class-diagram.png)
 
 ### Use Case Diagram
-![Use Case Diagram](./diagrams/use-case-diagram.png)
+![Use Case Diagram](../diagrams/use-case-diagram.png)
 
 ### Activity Diagram
-![Activity Diagram](./diagrams/activity-diagram.png)
+![Activity Diagram](../diagrams/activity-diagram.png)
 
 ### Sequence Diagram
-![Sequence Diagram](./diagrams/sequence-diagram.png)
+![Sequence Diagram](../diagrams/sequence-diagram.png)
 
 > Diagrams are provided as images. See `/diagrams/` for the source files/screenshots you created.
 
