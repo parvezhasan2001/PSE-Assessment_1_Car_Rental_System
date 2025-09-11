@@ -1,3 +1,4 @@
+from contextlib import closing
 from ..config.database import get_connection
 from ..utils.auth import hash_password, verify_password
 from ..utils.validators import validate_email, validate_password
@@ -89,6 +90,36 @@ class UserService:
             if conn and conn.is_connected():
                 conn.close()
 
+    @staticmethod
+    def list_customers(search: str | None = None, limit: int = 200, offset: int = 0):
+        """
+        Return only users with role='customer'.
+        Optional simple search across name/email.
+        """
+        where = ["role = 'customer'"]
+        params: list = []
+        if search:
+            where.append("(name LIKE %s OR email LIKE %s)")
+            like = f"%{search}%"
+            params.extend([like, like])
+
+        sql = f"""
+            SELECT user_id, name, email, role, created_at
+            FROM users
+            WHERE {' AND '.join(where)}
+            ORDER BY created_at DESC
+            LIMIT %s OFFSET %s
+        """
+        params.extend([int(limit), int(offset)])
+
+        with closing(get_connection()) as conn:
+            if not conn or not conn.is_connected():
+                return {"success": False, "message": "DB connection failed"}
+            with closing(conn.cursor(dictionary=True)) as cur:
+                cur.execute(sql, params)
+                rows = cur.fetchall() or []
+        return {"success": True, "customers": rows}
+    
     @staticmethod
     def delete_user(admin_role: str, user_id: int):
         """Only admins should call this: deletes a customer (cascades bookings)."""

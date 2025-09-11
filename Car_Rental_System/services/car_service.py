@@ -116,9 +116,9 @@ class CarService:
             if conn and conn.is_connected(): conn.close()
 
     @staticmethod
-    def list_available_cars(start_date=None, end_date=None):
+    def list_available_cars():
         """
-        If start/end provided, filter out cars with overlapping bookings (pending/approved/active).
+        Return ONLY currently available cars (no date filtering).
         """
         conn, cur = None, None
         try:
@@ -126,24 +126,7 @@ class CarService:
             if not conn or not conn.is_connected():
                 return {"success": False, "message": "DB connection failed"}
             cur = conn.cursor(dictionary=True)
-
-            if start_date and end_date:
-                sql = """
-                SELECT c.*
-                FROM cars c
-                WHERE c.available_now = TRUE
-                  AND c.car_id NOT IN (
-                       SELECT b.car_id
-                       FROM bookings b
-                       WHERE b.status IN ('pending','approved','active')
-                         AND NOT (b.end_date < %s OR b.start_date > %s)
-                  )
-                ORDER BY c.brand, c.model
-                """
-                cur.execute(sql, (start_date, end_date))
-            else:
-                cur.execute("SELECT * FROM cars WHERE available_now = TRUE ORDER BY brand, model")
-
+            cur.execute("SELECT * FROM cars WHERE available_now = TRUE")
             rows = cur.fetchall()
             return {"success": True, "cars": rows}
         except Exception as e:

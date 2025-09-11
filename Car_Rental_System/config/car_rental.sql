@@ -1,9 +1,12 @@
--- ========= Your schema (unchanged) =========
+-- =========================
+-- Car Rental DB (SCHEMA)
+-- =========================
 CREATE DATABASE IF NOT EXISTS car_rental
   CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+
 USE car_rental;
 
--- USERS
+-- ========== USERS ==========
 CREATE TABLE IF NOT EXISTS users (
     user_id    INT AUTO_INCREMENT PRIMARY KEY,
     name       VARCHAR(100) NOT NULL,
@@ -13,9 +16,10 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
+
 CREATE INDEX idx_users_email ON users(email);
 
--- CARS
+-- =========== CARS ==========
 CREATE TABLE IF NOT EXISTS cars (
     car_id          INT AUTO_INCREMENT PRIMARY KEY,
     brand           VARCHAR(100) NOT NULL,
@@ -29,10 +33,11 @@ CREATE TABLE IF NOT EXISTS cars (
     created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
-CREATE INDEX idx_cars_available ON cars(available_now);
-CREATE INDEX idx_cars_brand_model ON cars(brand, model);
 
--- BOOKINGS
+CREATE INDEX idx_cars_available    ON cars(available_now);
+CREATE INDEX idx_cars_brand_model  ON cars(brand, model);
+
+-- ========= BOOKINGS =========
 CREATE TABLE IF NOT EXISTS bookings (
     booking_id    INT AUTO_INCREMENT PRIMARY KEY,
     user_id       INT NOT NULL,
@@ -60,12 +65,13 @@ CREATE TABLE IF NOT EXISTS bookings (
 
     CONSTRAINT chk_booking_dates CHECK (end_date >= start_date)
 ) ENGINE=InnoDB;
-CREATE INDEX idx_bookings_user   ON bookings(user_id);
-CREATE INDEX idx_bookings_car    ON bookings(car_id);
-CREATE INDEX idx_bookings_status ON bookings(status);
-CREATE INDEX idx_bookings_dates  ON bookings(start_date, end_date);
 
--- PAYMENTS
+CREATE INDEX idx_bookings_user    ON bookings(user_id);
+CREATE INDEX idx_bookings_car     ON bookings(car_id);
+CREATE INDEX idx_bookings_status  ON bookings(status);
+CREATE INDEX idx_bookings_dates   ON bookings(start_date, end_date);
+
+-- ========= PAYMENTS =========
 CREATE TABLE IF NOT EXISTS payments (
     payment_id      INT AUTO_INCREMENT PRIMARY KEY,
     booking_id      INT NOT NULL,
@@ -79,75 +85,27 @@ CREATE TABLE IF NOT EXISTS payments (
       FOREIGN KEY (booking_id) REFERENCES bookings(booking_id)
       ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB;
+
 CREATE INDEX idx_payments_booking ON payments(booking_id);
 CREATE INDEX idx_payments_status  ON payments(payment_status);
 
--- QR CODE TOKENS
+-- ======= QR CODE TOKENS =======
 CREATE TABLE IF NOT EXISTS booking_qr_codes (
     qr_id       INT AUTO_INCREMENT PRIMARY KEY,
     booking_id  INT NOT NULL UNIQUE,
     qr_token    VARCHAR(128) NOT NULL UNIQUE,
     expires_at  DATETIME NULL,
     created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
     CONSTRAINT fk_qr_booking
       FOREIGN KEY (booking_id) REFERENCES bookings(booking_id)
       ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB;
+
 CREATE INDEX idx_qr_token ON booking_qr_codes(qr_token);
 
--- VIEW
+-- ============ VIEW ============
 CREATE OR REPLACE VIEW v_available_cars AS
 SELECT car_id, brand, model, year, mileage, daily_rate
 FROM cars
 WHERE available_now = TRUE;
-
--- ========= SEED DATA (NEW) =========
-START TRANSACTION;
-
--- 1) Seed users (admin + customer)
--- Passwords are bcrypt-hashed for:
---   Admin:     "AdminPass123!"
---   Customer:  "CustomerPass123!"
-INSERT INTO users (name, email, password, role) VALUES
-('Alice Admin',    'admin@carrental.com',  '$2b$12$roomjk62e3NBDhYtZqxloeu2Ek7.l7Ea0CYvt2v6yMUdVvGCMfnwm', 'admin'),
-('Carl Customer',  'carl@example.com',     '$2b$12$cW5/msidThEkBdyCqb8BA.KR3FKc9eTtMTk2tqXDII1ildSkx.pIy', 'customer');
-
--- 2) Seed cars
-INSERT INTO cars
-(brand, model, year, mileage, daily_rate, min_period_days, max_period_days, available_now)
-VALUES
-('Toyota','Corolla',       2020, 42000, 49.99, 1, 30, TRUE),
-('Toyota','Camry',         2021, 36000, 59.99, 1, 30, TRUE),
-('Toyota','RAV4',          2019, 58000, 69.99, 1, 30, TRUE),
-('Honda','Civic',          2020, 39000, 52.00, 1, 30, TRUE),
-('Honda','CR-V',           2018, 74000, 65.00, 1, 30, TRUE),
-('Ford','Focus',           2019, 61000, 45.00, 1, 30, TRUE),
-('Ford','Escape',          2020, 50000, 63.50, 1, 30, TRUE),
-('Nissan','Sentra',        2019, 67000, 44.00, 1, 30, TRUE),
-('Nissan','X-Trail',       2021, 33000, 64.00, 1, 30, TRUE),
-('Hyundai','Elantra',      2022, 21000, 53.00, 1, 30, TRUE),
-('Hyundai','Tucson',       2019, 59000, 60.00, 1, 30, TRUE),
-('Kia','Sportage',         2020, 47000, 61.00, 1, 30, TRUE),
-('Volkswagen','Golf',      2018, 82000, 42.50, 1, 30, TRUE),
-('Volkswagen','Tiguan',    2021, 28500, 66.00, 1, 30, TRUE),
-('BMW','3 Series',         2020, 41000, 95.00, 2, 21, TRUE),
-('Mercedes-Benz','C-Class',2019, 52000, 99.00, 2, 21, TRUE),
-('Audi','Q5',              2021, 30000,109.00, 2, 21, TRUE),
-('Tesla','Model 3',        2022, 18000,119.00, 1, 21, TRUE),
-('Tesla','Model Y',        2023, 12000,129.00, 1, 21, TRUE);
-
--- 3) (Optional) One sample booking for the customer on a specific car
--- Assumes user_id=2 (Carl) and car_id=1 (Corolla) exist after inserts above.
-INSERT INTO bookings (user_id, car_id, start_date, end_date, status, total_cost, approved_by)
-VALUES (2, 1, '2025-09-06', '2025-09-08', 'approved', 3 * 49.99, 1);
-
--- 4) (Optional) One sample payment for that booking
--- Assumes booking_id=1 is the one we just inserted.
-INSERT INTO payments (booking_id, amount, payment_method, payment_status, provider_txn_id)
-VALUES (1, 149.97, 'cash', 'paid', 'DEMO-TXN-001');
-
--- 5) (Optional) QR token for that booking (you can generate a random string server-side too)
-INSERT INTO booking_qr_codes (booking_id, qr_token, expires_at)
-VALUES (1, 'QR-BOOKING-1-DEMO-TOKEN-ABC123', DATE_ADD(NOW(), INTERVAL 7 DAY));
-
-COMMIT;

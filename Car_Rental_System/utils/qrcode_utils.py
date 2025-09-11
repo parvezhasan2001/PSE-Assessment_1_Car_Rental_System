@@ -1,27 +1,17 @@
 # utils/qrcode_utils.py
-import os
-import re
-import qrcode
+import os, re, qrcode, qrcode_terminal
 
-def _sanitize_filename(s: str) -> str:
-    return re.sub(r'[^A-Za-z0-9_.-]+', '_', s)
+def _safe(name: str) -> str:
+    return re.sub(r'[^A-Za-z0-9_.-]+', '_', name)
 
-def make_qr_png(data: str, outdir: str = "qrcodes", filename: str | None = None) -> str:
+def print_qr_ascii(token: str, outdir: str = "qrcodes", filename: str | None = None, show_ascii: bool = True) -> str:
+    """
+    Save a QR PNG and (optionally) print ASCII in terminal.
+    """
     os.makedirs(outdir, exist_ok=True)
-    if filename is None:
-        filename = _sanitize_filename(f"{data}.png")
+    filename = filename or _safe(f"{token}.png")
     path = os.path.join(outdir, filename)
-    img = qrcode.make(data)
-    img.save(path)
+    qrcode.make(token).save(path)     # PNG generation
+    if show_ascii:
+        qrcode_terminal.draw(token)   # ASCII in one call
     return path
-
-def print_qr_ascii(data: str) -> None:
-    """Pure-Python ASCII QR (no extra deps)."""
-    qr = qrcode.QRCode(border=1)
-    qr.add_data(data)
-    qr.make(fit=True)
-    matrix = qr.get_matrix()
-    black = "██"
-    white = "  "
-    for row in matrix:
-        print("".join(black if cell else white for cell in row))
