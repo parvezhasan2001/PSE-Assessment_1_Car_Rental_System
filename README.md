@@ -623,13 +623,13 @@ COMMIT;
 
 The UML Diagrams are listed Below 
 
-- **Class Diagram:** ![UML Class Diagram](./diagrams/class-diagram.png)
+- **Class Diagram:** ![UML Class Diagram](/Car_Rental_System/diagrams/class-diagram.png)
 
-- **Use Case:** ![Use Case Diagram](./diagrams/use-case-diagram.png)
+- **Use Case:** ![Use Case Diagram](/Car_Rental_System/diagrams/use-case-diagram.png)
 
-- **Activity Diagram:** ![Activity Diagram](./diagrams/activity-diagram.png)
+- **Activity Diagram:** ![Activity Diagram](/Car_Rental_System/diagrams/activity-diagram.png)
 
-- **Sequence Diagram:** ![Sequence Diagram](./diagrams/sequence-diagram.png)
+- **Sequence Diagram:** ![Sequence Diagram](/Car_Rental_System/diagrams/sequence-diagram.png)
 
 > Diagrams are provided as images. See `/diagrams/` for the source files/screenshots you created.
 
