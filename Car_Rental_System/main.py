@@ -1,27 +1,36 @@
 # main.py
 
-# Robust imports: support both "python -m Car_Rental_System.main" and "python main.py"
-try:
-    from .controllers.car_controller import CarController
-    from .controllers.user_controller import UserController
-    from .services.userservice import UserService
-    from .services.booking_service import BookingService
-    from .services.payment_service import PaymentService
-    from .services.qrcode_service import QRService
-    from .utils.sessions import SessionManager         
-except ImportError:
-    from .controllers.car_controller import CarController
-    from .controllers.user_controller import UserController
-    from .services.userservice import UserService
-    from .services.booking_service import BookingService
-    from .services.payment_service import PaymentService
-    from .services.qrcode_service import QRService
-    from .utils.sessions import SessionManager
-              
+import os, sys
+base_dir = os.path.dirname(sys.executable) if getattr(sys, "frozen", False) else os.path.dirname(os.path.abspath(__file__))
+if base_dir not in sys.path:
+    sys.path.insert(0, base_dir)
+# Prefer relative imports when running as a module: python -m Car_Rental_System.main
+
+from controllers.car_controller import CarController
+from controllers.user_controller import UserController
+from services.userservice import UserService
+from services.booking_service import BookingService
+from services.payment_service import PaymentService
+from services.qrcode_service import QRService
+from utils.sessions import SessionManager
+from config.database import DatabaseConnection
+
+
+
+
 def main():
     print("=== 🚗 Car Rental System ===")
 
-    # current session state
+    # Create shared DB adapter and controller instances ONCE
+    db = DatabaseConnection()
+    car_controller = CarController(db)
+    user_controller = UserController(db)
+
+    # If you plan to call services directly from main, also instantiate them here:
+    booking_service = BookingService(db)
+    payment_service = PaymentService(db)
+    qr_service = QRService(db)
+
     current_user = None
     session_token = None
 
@@ -35,14 +44,13 @@ def main():
             choice = input("Enter choice: ").strip()
 
             if choice == "1":
-                result = UserController.register_user()
-                # Optional: print(result.get("message"))
+                user_controller.register_user()
 
             elif choice == "2":
-                result = UserController.login_user()
+                result = user_controller.login_user()
                 if result and result.get("success"):
                     current_user  = result["user"]
-                    session_token = result.get("session_token")  # created in your login flow
+                    session_token = result.get("session_token")
                     print(f"✅ Logged in as {current_user['name']} ({current_user['role']})")
                 else:
                     print("❌ Login failed:", (result or {}).get("message", "Unknown error"))
@@ -75,16 +83,18 @@ def main():
             ch = input("Choose: ").strip()
 
             if ch == "1":
-                CarController.list_all_cars(current_user, session_token)
+                car_controller.list_all_cars(current_user, session_token)
             elif ch == "2":
-                CarController.add_car(current_user, session_token)
+                car_controller.add_car(current_user, session_token)
             elif ch == "3":
-                CarController.update_car(current_user, session_token)
+                car_controller.update_car(current_user, session_token)
             elif ch == "4":
-                CarController.delete_car(current_user, session_token)
+                car_controller.delete_car(current_user, session_token)
+
             elif ch == "5":
-                res = BookingService.list_admin_bookings()
-                if not res.get("success"): print("❌", res.get("message")); continue
+                res = booking_service.list_admin_bookings()
+                if not res.get("success"):
+                    print("❌", res.get("message")); continue
                 for r in res["bookings"]:
                     print(f"#{r['booking_id']} | {r['user_name']} | {r['brand']} {r['model']} | "
                           f"{r['start_date']}→{r['end_date']} | {r['status']} | "
@@ -92,54 +102,64 @@ def main():
                 print("Counts:", res.get("counts", {}))
 
             elif ch == "6":
-                res = BookingService.list_pending_approvals()
-                if not res.get("success"): print("❌", res.get("message")); continue
+                res = booking_service.list_pending_approvals()
+                if not res.get("success"):
+                    print("❌", res.get("message")); continue
                 for r in res["bookings"]:
                     print(f"[PENDING] #{r['booking_id']} | {r['user_name']} | {r['brand']} {r['model']} "
                           f"| {r['start_date']}→{r['end_date']} | ${r['total_cost']}")
                 print("Counts:", res.get("counts", {}))
 
             elif ch == "7":
-                res = BookingService.list_rejected()
-                if not res.get("success"): print("❌", res.get("message")); continue
+                res = booking_service.list_rejected()
+                if not res.get("success"):
+                    print("❌", res.get("message")); continue
                 for r in res["bookings"]:
                     print(f"[REJECTED] #{r['booking_id']} | {r['user_name']} | {r['brand']} {r['model']} "
                           f"| {r['start_date']}→{r['end_date']} | ${r['total_cost']}")
                 print("Counts:", res.get("counts", {}))
+
             elif ch in ("8", "9"):
                 try:
                     bid = int(input("Booking ID: ").strip())
                     approve = (ch == "8")
-                    res = BookingService.approve_booking(current_user["user_id"], bid, approve=approve)
+                    res = booking_service.approve_booking(current_user["user_id"], bid, approve=approve)
                     print(("✅ " if res.get("success") else "❌ ") + res.get("message", ""))
                 except ValueError:
                     print("❌ Invalid booking id")
+
             elif ch == "10":
-                UserController.list_customers(current_user, session_token)
+                user_controller.list_customers(current_user, session_token)
+
             elif ch == "11":
                 try:
                     uid = int(input("Customer user_id to delete: ").strip())
-                    res = UserService.delete_user(current_user["role"], uid)
+                    # If your UserService.delete_user is instance-based, call via service instance:
+                    res = UserService(db).delete_user(current_user["role"], uid)
                     print(("✅ " if res.get("success") else "❌ ") + res.get("message", ""))
                 except ValueError:
                     print("❌ Invalid user id")
+
             elif ch == "12":
                 token = input("Scan/Enter QR token for PICKUP: ").strip()
-                res = QRService.scan_pickup(token, current_user["user_id"])
+                res = qr_service.scan_pickup(token, current_user["user_id"])
                 print(("✅ " if res.get("success") else "❌ ") + res.get("message", ""))
+
             elif ch == "13":
                 token = input("Scan/Enter QR token for RETURN: ").strip()
-                res = QRService.scan_return(token, current_user["user_id"])
+                res = qr_service.scan_return(token, current_user["user_id"])
                 print(("✅ " if res.get("success") else "❌ ") + res.get("message", ""))
+
             elif ch == "14":
                 try:
                     bid = int(input("Booking ID to mark paid: ").strip())
                     method = input("Method [cash/debit_card/credit_card/paypal]: ").strip() or "cash"
                     txn = input("Provider TXN ID (optional): ").strip() or None
-                    res = PaymentService.mark_paid(bid, method=method, provider_txn_id=txn)
+                    res = payment_service.mark_paid(bid, method=method, provider_txn_id=txn)
                     print(("✅ " if res.get("success") else "❌ ") + res.get("message", ""))
                 except ValueError:
                     print("❌ Invalid booking id")
+
             elif ch == "0":
                 SessionManager.invalidate(session_token)
                 current_user = None
@@ -159,13 +179,13 @@ def main():
             ch = input("Choose: ").strip()
 
             if ch == "1":
-                CarController.view_available_cars()
+                car_controller.view_available_cars()
             elif ch == "2":
-                CarController.book_car(current_user, session_token)
+                car_controller.book_car(current_user, session_token)
             elif ch == "3":
-                CarController.view_my_bookings(current_user, session_token)
+                car_controller.view_my_bookings(current_user, session_token)
             elif ch == "4":
-                CarController.customer_view_qr(current_user, session_token)
+                car_controller.customer_view_qr(current_user, session_token)
             elif ch == "0":
                 SessionManager.invalidate(session_token)
                 current_user = None
@@ -173,6 +193,7 @@ def main():
                 print("Logged out.")
             else:
                 print("Invalid choice.")
+        pass
 
 
 if __name__ == "__main__":

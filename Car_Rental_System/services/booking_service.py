@@ -3,17 +3,15 @@ from contextlib import closing
 from decimal import Decimal
 from typing import Optional
 
-from ..services.bookin_workflow import BookingWorkflow
-
-from ..services.payment_service import PaymentService
-
-from ..utils.pricing import compute_total, parse_yyyy_mm_dd
-from ..services.qrcode_service import QRService
-from ..config.database import get_connection
+from services.bookin_workflow import BookingWorkflow
+from utils.pricing import compute_total, parse_yyyy_mm_dd
+from config.database import DatabaseConnection
 
 class BookingService:
-    @staticmethod
-    def create_booking(user_id: int, car_id: int, start_date_str: str, end_date_str: str):
+    def __init__(self, db: DatabaseConnection|None = None):
+        self.db = db or DatabaseConnection()
+    
+    def create_booking(self, user_id: int, car_id: int, start_date_str: str, end_date_str: str):
         try:
             start = parse_yyyy_mm_dd(start_date_str)
             end = parse_yyyy_mm_dd(end_date_str)
@@ -22,7 +20,7 @@ class BookingService:
         except Exception:
             return {"success": False, "message": "Invalid date format. Use YYYY-MM-DD"}
 
-        with closing(get_connection()) as conn:
+        with closing(self.db.get_connection()) as conn:
             if not conn or not conn.is_connected():
                 return {"success": False, "message": "DB connection failed"}
             with closing(conn.cursor(dictionary=True)) as cur:
@@ -66,9 +64,9 @@ class BookingService:
                     "total_cost": str(pricing["total"]),
                     "days": pricing["days"],
                 }
-            
-    @staticmethod
-    def list_user_bookings(user_id: int, status: Optional[str] = None):
+
+
+    def list_user_bookings(self, user_id: int, status: Optional[str] = None):
         """
         Return a user's bookings with car details, payment status, and QR token presence.
         Optional filter by booking status: pending/approved/rejected/active/completed/cancelled
@@ -76,7 +74,7 @@ class BookingService:
         allowed = {"pending","approved","rejected","active","completed","cancelled"}
         use_filter = status in allowed if status is not None else False
 
-        with closing(get_connection()) as conn:
+        with closing(self.db.get_connection()) as conn:
             if not conn or not conn.is_connected():
                 return {"success": False, "message": "DB connection failed"}
             with closing(conn.cursor(dictionary=True)) as cur:
@@ -106,8 +104,8 @@ class BookingService:
                 return {"success": True, "bookings": rows}
             
 
-    @staticmethod
-    def list_admin_bookings(
+
+    def list_admin_bookings(self,
         status: Optional[str] = None,
         user_id: Optional[int] = None,
         date_from: Optional[str] = None,   # "YYYY-MM-DD"
@@ -147,7 +145,7 @@ class BookingService:
 
         where_clause = " AND ".join(where)
 
-        with closing(get_connection()) as conn:
+        with closing(self.db.get_connection()) as conn:
             if not conn or not conn.is_connected():
                 return {"success": False, "message": "DB connection failed"}
             with closing(conn.cursor(dictionary=True)) as cur:
@@ -182,21 +180,20 @@ class BookingService:
 
                 return {"success": True, "bookings": rows, "counts": counts}
 
-    @staticmethod
-    def list_pending_approvals(limit: int = 200, offset: int = 0):
+
+    def list_pending_approvals(self, limit: int = 200, offset: int = 0):
         """Admin shortcut: bookings needing approval (status = 'pending')."""
-        return BookingService.list_admin_bookings(status="pending", limit=limit, offset=offset)
+        return self.list_admin_bookings(status="pending", limit=limit, offset=offset)
 
-    @staticmethod
-    def list_rejected(limit: int = 200, offset: int = 0):
+    
+    def list_rejected(self, limit: int = 200, offset: int = 0):
         """Admin shortcut: rejected bookings (status = 'rejected')."""
-        return BookingService.list_admin_bookings(status="rejected", limit=limit, offset=offset)
+        return self.list_admin_bookings(status="rejected", limit=limit, offset=offset)
 
-    @staticmethod
-    def approve_booking(admin_user_id: int, booking_id: int, approve: bool = True):
+    def approve_booking(self, admin_user_id: int, booking_id: int, approve: bool = True):
         # Reject path (simple, all inside one connection scope)
         if not approve:
-            with closing(get_connection()) as conn:
+            with closing(self.db.get_connection()) as conn:
                 if not conn or not conn.is_connected():
                     return {"success": False, "message": "DB connection failed"}
                 with closing(conn.cursor(dictionary=True)) as cur:
@@ -214,5 +211,5 @@ class BookingService:
             return {"success": True, "message": "Booking rejected"}
 
         # Approve path: delegate to workflow (keeps all DB work properly scoped)
-        return BookingWorkflow.approve(booking_id=booking_id, admin_user_id=admin_user_id, days_valid=7)
+        return BookingWorkflow(self.db).approve(booking_id=booking_id, admin_user_id=admin_user_id, days_valid=7)
 

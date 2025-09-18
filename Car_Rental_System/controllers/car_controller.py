@@ -1,11 +1,19 @@
-from ..utils.pricing import parse_yyyy_mm_dd
-from ..utils.sessions import SessionManager
-from ..services.qrcode_service import QRService
-from ..utils.qrcode_utils import print_qr_ascii
-from ..services.car_service import CarService
-from ..services.booking_service import BookingService
+from config.database import DatabaseConnection
+from utils.pricing import parse_yyyy_mm_dd
+from utils.sessions import SessionManager
+from services.qrcode_service import QRService
+from utils.qrcode_utils import print_qr_ascii
+from services.car_service import CarService
+from services.booking_service import BookingService
 
 class CarController:
+
+    def __init__(self, db: DatabaseConnection | None = None):
+        self.db = db or DatabaseConnection()
+        self.car_service = CarService(self.db)
+        self.booking_service = BookingService(self.db)
+        self.qr_service = QRService(self.db)
+    
 
     # ------------- internal helper -------------
     @staticmethod
@@ -30,8 +38,8 @@ class CarController:
         return sess_user
 
     # ---------- ADMIN ----------
-    @staticmethod
-    def add_car(current_user: dict, session_token: str):
+    
+    def add_car(self, current_user: dict, session_token: str):
         if not CarController._check_session(session_token, required_role="admin", current_user=current_user):
             return
         brand = input("Brand: ").strip()
@@ -54,11 +62,11 @@ class CarController:
             }
         except Exception:
             print("❌ Invalid numeric input"); return
-        res = CarService.add_car(**payload)
+        res = self.car_service.add_car(**payload)
         print(("✅ " if res.get("success") else "❌ ") + res.get("message"))
 
-    @staticmethod
-    def update_car(current_user: dict, session_token: str):
+
+    def update_car(self, current_user: dict, session_token: str):
         if not CarController._check_session(session_token, required_role="admin", current_user=current_user):
             return
         try:
@@ -86,32 +94,30 @@ class CarController:
             else:
                 fields[key] = val
 
-        res = CarService.update_car(car_id, **fields)
+        res = self.car_service.update_car(car_id, **fields)
         print(("✅ " if res.get("success") else "❌ ") + res.get("message"))
 
-    @staticmethod
-    def delete_car(current_user: dict, session_token: str):
+    def delete_car(self, current_user: dict, session_token: str):
         if not CarController._check_session(session_token, required_role="admin", current_user=current_user):
             return
         try:
             car_id = int(input("Car ID to delete: "))
         except Exception:
             print("❌ Invalid car id"); return
-        res = CarService.delete_car(car_id)
+        res = self.car_service.delete_car(car_id)
         print(("✅ " if res.get("success") else "❌ ") + res.get("message"))
 
-    @staticmethod
-    def list_all_cars(current_user: dict, session_token: str):
+    def list_all_cars(self, current_user: dict, session_token: str):
         if not CarController._check_session(session_token, required_role="admin", current_user=current_user):
             return
-        res = CarService.list_cars()
+        res = self.car_service.list_cars()
         if not res.get("success"):
             print("❌", res.get("message")); return
         for c in res.get("cars", []):
             print(f"- #{c['car_id']}: {c['brand']} {c['model']} | rate ${c['daily_rate']} | avail={bool(c['available_now'])}")
 
-    @staticmethod
-    def customer_view_qr(current_user: dict, session_token: str):
+
+    def customer_view_qr(self, current_user: dict, session_token: str):
         sess_user = CarController._check_session(session_token, required_role="customer", current_user=current_user)
         if not sess_user:
             return
@@ -119,7 +125,7 @@ class CarController:
             bid = int(input("Your approved booking ID: "))
         except Exception:
             print("❌ Invalid booking id"); return
-        res = QRService.get_by_booking(bid)
+        res = self.qr_service.get_by_booking(bid)
         if not res.get("success"):
             print("❌", res.get("message")); return
         token = res["qr"]["qr_token"]
@@ -129,10 +135,10 @@ class CarController:
         print(f"\nQR token: {token} (show this at pickup)")
 
     # ---------- CUSTOMER ----------
-    @staticmethod
-    def view_available_cars():
+
+    def view_available_cars(self):
         print("\n=== Available Cars ===")
-        res = CarService.list_available_cars()
+        res = self.car_service.list_available_cars()
         if not res.get("success"):
             print("❌", res.get("message"))
             return
@@ -143,8 +149,8 @@ class CarController:
         for c in cars:
             print(f"- #{c['car_id']}: {c['brand']} {c['model']} | ${c['daily_rate']}/day")
 
-    @staticmethod
-    def book_car(current_user: dict, session_token: str):
+
+    def book_car(self, current_user: dict, session_token: str):
         # Require a valid CUSTOMER session
         sess_user = CarController._check_session(session_token, current_user=current_user, required_role="customer")
         if not sess_user:
@@ -167,7 +173,7 @@ class CarController:
             print("❌ Invalid input")
             return
 
-        res = BookingService.create_booking(sess_user["user_id"], car_id, start_s, end_s)
+        res = self.booking_service.create_booking(sess_user["user_id"], car_id, start_s, end_s)
         if res.get("success"):
             print(f"✅ {res['message']} | Booking #{res['booking_id']} | Cost: ${res['total_cost']}")
             if "days" in res:
@@ -176,8 +182,8 @@ class CarController:
             print("❌", res.get("message"))
 
 
-    @staticmethod
-    def view_my_bookings(current_user: dict, session_token: str):
+
+    def view_my_bookings(self, current_user: dict, session_token: str):
         # Require a valid CUSTOMER session
         sess_user = CarController._check_session(session_token, current_user=current_user, required_role="customer")
         if not sess_user:
@@ -190,7 +196,7 @@ class CarController:
         if flt and status is None:
             print("⚠️ Unknown status filter ignored.")
 
-        res = BookingService.list_user_bookings(sess_user["user_id"], status=status)
+        res = self.booking_service.list_user_bookings(sess_user["user_id"], status=status)
         if not res.get("success"):
             print("❌", res.get("message")); return
 
@@ -212,8 +218,8 @@ class CarController:
             print(f"{r['booking_id']:<5} {car:<20} {dates:<23} {r['status']:<10} {total:<10} {pay:<8} {qr:<4}")
 
     # ---------- ADMIN ----------
-    @staticmethod
-    def add_car(current_user: dict, session_token: str):
+
+    def add_car(self, current_user: dict, session_token: str):
     # Require a valid ADMIN session
         sess_user = CarController._check_session(session_token, current_user=current_user, required_role="admin")
         if not sess_user:
@@ -268,11 +274,11 @@ class CarController:
             print("❌ Invalid numeric input")
             return
 
-        res = CarService.add_car(**payload)
+        res = self.car_service.add_car(**payload)
         print(("✅ " if res.get("success") else "❌ ") + res.get("message"))
 
-    @staticmethod
-    def update_car(current_user: dict, session_token: str):
+
+    def update_car(self, current_user: dict, session_token: str):
         # Require a valid ADMIN session
         sess_user = CarController._check_session(session_token, current_user=current_user, required_role="admin")
         if not sess_user:
@@ -326,12 +332,11 @@ class CarController:
             if fields["min_period_days"] > fields["max_period_days"]:
                 print("❌ Min period cannot be greater than Max period"); return
 
-        res = CarService.update_car(car_id, **fields)
+        res = self.car_service.update_car(car_id, **fields)
         print(("✅ " if res.get("success") else "❌ ") + res.get("message"))
 
 
-    @staticmethod
-    def delete_car(current_user: dict, session_token: str):
+    def delete_car(self, current_user: dict, session_token: str):
         # Require a valid ADMIN session
         sess_user = CarController._check_session(session_token, current_user=current_user, required_role="admin")
         if not sess_user:
@@ -343,18 +348,17 @@ class CarController:
             print("❌ Invalid car id")
             return
 
-        res = CarService.delete_car(car_id)
+        res = self.car_service.delete_car(car_id)
         print(("✅ " if res.get("success") else "❌ ") + res.get("message"))
 
 
-    @staticmethod
-    def list_all_cars(current_user: dict, session_token: str):
+    def list_all_cars(self, current_user: dict, session_token: str):
         # Require a valid ADMIN session
         sess_user = CarController._check_session(session_token, current_user=current_user, required_role="admin")
         if not sess_user:
             return
 
-        res = CarService.list_cars()
+        res = self.car_service.list_cars()
         if not res.get("success"):
             print("❌", res.get("message")); return
         cars = res.get("cars", [])
@@ -364,8 +368,8 @@ class CarController:
             print(f"- #{c['car_id']}: {c['brand']} {c['model']} | rate ${c['daily_rate']} | avail={bool(c['available_now'])}")
 
 
-    @staticmethod
-    def customer_view_qr(current_user: dict, session_token: str):
+
+    def customer_view_qr(self, current_user: dict, session_token: str):
         # Require a valid CUSTOMER session
         sess_user = CarController._check_session(session_token, current_user=current_user, required_role="customer")
         if not sess_user:
@@ -376,7 +380,7 @@ class CarController:
         except Exception:
             print("❌ Invalid booking id"); return
 
-        res = QRService.get_by_booking(bid)
+        res = self.qr_service.get_by_booking(bid)
         if not res.get("success") or not res.get("qr"):
             print("❌", res.get("message", "No QR token for this booking")); return
 

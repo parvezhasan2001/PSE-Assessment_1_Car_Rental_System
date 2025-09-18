@@ -1,14 +1,16 @@
 # services/car_service.py
-from ..config.database import get_connection
+from config.database import DatabaseConnection
 
 class CarService:
-    @staticmethod
-    def add_car(brand, model, year=None, mileage=None,
+    def __init__(self, db: DatabaseConnection|None = None):
+        self.db = db or DatabaseConnection()
+
+    def add_car(self, brand, model, year=None, mileage=None,
                 daily_rate=0.0, min_period_days=None, max_period_days=None,
                 available_now=True):
         conn, cur = None, None
         try:
-            conn = get_connection()
+            conn = self.db.get_connection()
             if not conn or not conn.is_connected():
                 return {"success": False, "message": "DB connection failed"}
             cur = conn.cursor(dictionary=True)
@@ -26,8 +28,8 @@ class CarService:
             if cur: cur.close()
             if conn and conn.is_connected(): conn.close()
 
-    @staticmethod
-    def update_car(car_id, **fields):
+
+    def update_car(self, car_id, **fields):
         if not fields:
             return {"success": False, "message": "No fields to update"}
         allowed = {"brand","model","year","mileage","daily_rate","min_period_days","max_period_days","available_now"}
@@ -41,7 +43,7 @@ class CarService:
 
         conn, cur = None, None
         try:
-            conn = get_connection()
+            conn = self.db.get_connection()
             if not conn or not conn.is_connected():
                 return {"success": False, "message": "DB connection failed"}
             cur = conn.cursor(dictionary=True)
@@ -59,11 +61,11 @@ class CarService:
             if cur: cur.close()
             if conn and conn.is_connected(): conn.close()
 
-    @staticmethod
-    def delete_car(car_id):
+    
+    def delete_car(self,car_id):
         conn, cur = None, None
         try:
-            conn = get_connection()
+            conn = self.db.get_connection()
             if not conn or not conn.is_connected():
                 return {"success": False, "message": "DB connection failed"}
             cur = conn.cursor(dictionary=True)
@@ -79,11 +81,11 @@ class CarService:
             if cur: cur.close()
             if conn and conn.is_connected(): conn.close()
 
-    @staticmethod
-    def get_car(car_id):
+
+    def get_car(self, car_id):
         conn, cur = None, None
         try:
-            conn = get_connection()
+            conn = self.db.get_connection()
             if not conn or not conn.is_connected():
                 return {"success": False, "message": "DB connection failed"}
             cur = conn.cursor(dictionary=True)
@@ -98,11 +100,11 @@ class CarService:
             if cur: cur.close()
             if conn and conn.is_connected(): conn.close()
 
-    @staticmethod
-    def list_cars():
+
+    def list_cars(self):
         conn, cur = None, None
         try:
-            conn = get_connection()
+            conn = self.db.get_connection()
             if not conn or not conn.is_connected():
                 return {"success": False, "message": "DB connection failed"}
             cur = conn.cursor(dictionary=True)
@@ -115,14 +117,14 @@ class CarService:
             if cur: cur.close()
             if conn and conn.is_connected(): conn.close()
 
-    @staticmethod
-    def list_available_cars():
+
+    def list_available_cars(self):
         """
         Return ONLY currently available cars (no date filtering).
         """
         conn, cur = None, None
         try:
-            conn = get_connection()
+            conn = self.db.get_connection()
             if not conn or not conn.is_connected():
                 return {"success": False, "message": "DB connection failed"}
             cur = conn.cursor(dictionary=True)

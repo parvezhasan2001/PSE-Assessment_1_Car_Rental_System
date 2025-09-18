@@ -1,101 +1,66 @@
 from contextlib import closing
-from ..config.database import get_connection
-from ..utils.auth import hash_password, verify_password
-from ..utils.validators import validate_email, validate_password
+from config.database import DatabaseConnection
+from utils.auth import hash_password, verify_password
+from utils.validators import validate_email, validate_password
 
 class UserService:
+    def __init__(self, db: DatabaseConnection | None = None):
+        self.db = db or DatabaseConnection()
 
-    def register_user(name, email, password, role="customer"):
+    def register_user(self, name, email, password, role="customer"):
+        # Basic validation
         if not validate_email(email):
             return {"success": False, "message": "Invalid email format"}
         if not validate_password(password):
             return {"success": False, "message": "Password must be at least 8 characters long"}
 
-        conn = None
-        cursor = None
-        try:
-            conn = get_connection()
-            if not conn or not conn.is_connected():
+        # Normalize role and restrict to allowed values
+        role = (role or "customer").strip().lower()
+        if role not in ("admin", "customer"):
+            role = "customer"
+
+        # Properly acquire and close the connection/cursor
+        with closing(self.db.get_connection()) as conn:
+            if not conn or (hasattr(conn, "is_connected") and not conn.is_connected()):
                 return {"success": False, "message": "Database connection failed"}
+            with closing(conn.cursor(dictionary=True)) as cursor:
+                # Uniqueness check
+                cursor.execute("SELECT user_id FROM users WHERE email = %s", (email,))
+                if cursor.fetchone():
+                    return {"success": False, "message": "Email already registered with this user"}
 
-            cursor = conn.cursor(dictionary=True)
+                # Hash + insert
+                hashed_pw = hash_password(password)
+                cursor.execute(
+                    "INSERT INTO users (name, email, password, role) VALUES (%s, %s, %s, %s)",
+                    (name, email, hashed_pw, role)
+                )
+                conn.commit()
 
-            # Check if email already exists
-            cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
-            if cursor.fetchone():
-                return {"success": False, "message": "Email already registered with this user"}
+                return {"success": True, "message": f"User {role} registered successfully"}
 
-            # Hash password
-            hashed_pw = hash_password(password)
-
-            # Insert user
-            cursor.execute(
-                "INSERT INTO users (name, email, password, role) VALUES (%s, %s, %s, %s)",
-                (name, email, hashed_pw, role)
-            )
-            conn.commit()
-
-            return {"success": True, "message": f"User {role} registered successfully"}
-        except Exception as e:
-            return {"success": False, "message": f"⚠️ Error during registration: {e}"}
-        finally:
-            if cursor:
-                cursor.close()
-            if conn and conn.is_connected():
-                conn.close()
-
-    def login_user(email, password):
-        conn = None
-        cursor = None
-        try:
-            conn = get_connection()
-            if not conn or not conn.is_connected():
+    def login_user(self, email, password):
+        with closing(self.db.get_connection()) as conn:
+            if not conn or (hasattr(conn, "is_connected") and not conn.is_connected()):
                 return {"success": False, "message": "Database connection failed"}
+            with closing(conn.cursor(dictionary=True)) as cursor:
+                cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
+                user = cursor.fetchone()
+                if not user:
+                    return {"success": False, "message": "User not found"}
 
-            cursor = conn.cursor(dictionary=True)
+                if not verify_password(password, user["password"]):
+                    return {"success": False, "message": "Invalid password"}
 
-            # Check if user exists
-            cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
-            user = cursor.fetchone()
-
-            if not user:
-                return {"success": False, "message": "User not found"}
-
-            # Verify password
-            if not verify_password(password, user["password"]):
-                return {"success": False, "message": "Invalid password"}
-
-            # Distinguish role
-            role = user["role"]
-            if role == "admin":
+                role = user.get("role", "customer")
                 return {
                     "success": True,
-                    "message": "Admin login successful",
-                    "role": "admin",
-                    "user": user
-                }
-            else:
-                return {
-                    "success": True,
-                    "message": "Customer login successful",
-                    "role": "customer",
+                    "message": "Admin login successful" if role == "admin" else "Customer login successful",
+                    "role": role,
                     "user": user
                 }
 
-        except Exception as e:
-            return {"success": False, "message": f"⚠️ Error during login: {e}"}
-        finally:
-            if cursor:
-                cursor.close()
-            if conn and conn.is_connected():
-                conn.close()
-
-    @staticmethod
-    def list_customers(search: str | None = None, limit: int = 200, offset: int = 0):
-        """
-        Return only users with role='customer'.
-        Optional simple search across name/email.
-        """
+    def list_customers(self, search: str | None = None, limit: int = 200, offset: int = 0):
         where = ["role = 'customer'"]
         params: list = []
         if search:
@@ -112,43 +77,31 @@ class UserService:
         """
         params.extend([int(limit), int(offset)])
 
-        with closing(get_connection()) as conn:
-            if not conn or not conn.is_connected():
+        with closing(self.db.get_connection()) as conn:
+            if not conn or (hasattr(conn, "is_connected") and not conn.is_connected()):
                 return {"success": False, "message": "DB connection failed"}
             with closing(conn.cursor(dictionary=True)) as cur:
                 cur.execute(sql, params)
                 rows = cur.fetchall() or []
         return {"success": True, "customers": rows}
-    
-    @staticmethod
-    def delete_user(admin_role: str, user_id: int):
-        """Only admins should call this: deletes a customer (cascades bookings)."""
+
+    def delete_user(self, admin_role: str, user_id: int):
         if admin_role != "admin":
             return {"success": False, "message": "Forbidden: admin only"}
 
-        conn, cur = None, None
-        try:
-            conn = get_connection()
-            if not conn or not conn.is_connected():
+        with closing(self.db.get_connection()) as conn:
+            if not conn or (hasattr(conn, "is_connected") and not conn.is_connected()):
                 return {"success": False, "message": "DB connection failed"}
-            cur = conn.cursor(dictionary=True)
+            with closing(conn.cursor(dictionary=True)) as cur:
+                cur.execute("SELECT role FROM users WHERE user_id=%s", (user_id,))
+                row = cur.fetchone()
+                if not row:
+                    return {"success": False, "message": "User not found"}
+                if row["role"] == "admin":
+                    return {"success": False, "message": "Refusing to delete an admin"}
 
-            # Don’t allow deleting another admin accidentally
-            cur.execute("SELECT role FROM users WHERE user_id=%s", (user_id,))
-            row = cur.fetchone()
-            if not row:
-                return {"success": False, "message": "User not found"}
-            if row["role"] == "admin":
-                return {"success": False, "message": "Refusing to delete an admin"}
-
-            cur.execute("DELETE FROM users WHERE user_id=%s", (user_id,))
-            conn.commit()
-            if cur.rowcount == 0:
-                return {"success": False, "message": "User not found / not deleted"}
-            return {"success": True, "message": "User deleted"}
-        except Exception as e:
-            return {"success": False, "message": f"Delete user error: {e}"}
-        finally:
-            if cur: cur.close()
-            if conn and conn.is_connected(): conn.close()
-
+                cur.execute("DELETE FROM users WHERE user_id=%s", (user_id,))
+                conn.commit()
+                if cur.rowcount == 0:
+                    return {"success": False, "message": "User not found / not deleted"}
+                return {"success": True, "message": "User deleted"}

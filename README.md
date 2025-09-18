@@ -21,6 +21,8 @@ This project demonstrates **object-oriented design** with appropriate **design p
 - [Pricing & Payment Flow](#pricing--payment-flow)
 - [Validation Rules](#validation-rules)
 - [System Documentation (UML)](#system-documentation-uml)
+- [Testing](#-testing)
+- [Windows Build (PyInstaller)](#-windows-build-pyinstaller)
 - [Troubleshooting](#troubleshooting)
 - [License](#license)
 - [Credits](#credits)
@@ -651,6 +653,138 @@ The UML Diagrams are listed Below
 
 ---
 
+## 🔧 Software Evolution Plan (Task 3)
+
+- **Maintenance**
+  - Structured logging (add a `utils/logging.py`); error handling with clear messages.
+  - Unit tests for auth, pricing, booking state transitions.
+  - Linting & CI (flake8/black + GitHub Actions).
+- **Versioning**
+  - Semantic Versioning: `MAJOR.MINOR.PATCH`.
+  - Maintain a `CHANGELOG.md`.
+- **Backward Compatibility**
+  - Additive schema changes first; deprecate before remove.
+  - Feature flags for risky features.
+  - Migration scripts in `/db/migrations` (use timestamps in filenames).
+
+---
+
+## 🧪 Testing
+
+This project uses **pytest**. The default tests focus on **utility correctness** (auth & pricing). Service/DB tests are optional and can be enabled with a dedicated **test database**.
+
+### 1) Install dev dependencies
+```bash
+pip install -r requirements.txt
+pip install pytest pytest-cov python-dotenv
+```
+
+### 2) Test layout
+```
+tests/
+├── conftest.py                 # common fixtures (env, temp dirs)
+├── test_auth.py                # bcrypt roundtrip tests
+└── test_pricing.py             # rental_days & compute_total
+pytest.ini                      # pytest config
+.env.test.example               # template for test DB credentials (optional)
+```
+
+### 3) Running tests
+```bash
+# run all tests
+pytest -q
+
+# with coverage (adjust package paths if needed)
+pytest --cov=controllers --cov=services --cov=utils --cov-report=term-missing
+```
+
+### 4) Optional DB integration tests
+If you want to run service-level tests that require a database:
+
+1. Create a **separate database** (e.g., `car_rental_test`) and user with limited privileges.  
+2. Copy your schema/seed into that DB.  
+3. Create a `.env.test` from `.env.test.example` and fill in the `TEST_DB_*` values.  
+4. In your tests/fixtures, connect to the test DB and **rollback** between tests.
+
+> Tip: keep destructive operations inside transactions and `ROLLBACK` at test teardown.
+
+---
+
+## 🧱 Windows Build (PyInstaller)
+
+### CarRentalCLI – Build Instructions (Windows)
+```
+1) Prereqs
+----------
+- Python 3.10+ installed and added to PATH
+- (Optional) MySQL server running; your .env must have valid DB credentials:
+  DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD
+- .env placed in the project root next to main.py
+
+2) Quick build
+--------------
+- Double-click build_windows.bat (or run from a terminal). It will:
+  - create a virtual environment .venv
+  - install dependencies (from requirements.txt if present)
+  - run PyInstaller
+  - place the exe at dist/CarRentalCLI.exe
+
+3) Alternative: build using the spec file
+-----------------------------------------
+- In a terminal from the project root:
+  - pip install pyinstaller
+  - pyinstaller --clean CarRentalCLI.spec
+
+4) Run the exe
+--------------
+- Double-click dist/CarRentalCLI.exe
+- Or run from terminal: dist\CarRentalCLI.exe
+
+5) If you read extra files at runtime
+-------------------------------------
+- Use a helper to resolve paths when frozen:
+
+  # config/paths.py
+  import os, sys
+  def resource_path(rel_path: str) -> str:
+      base = getattr(sys, '_MEIPASS', os.path.abspath('.'))
+      return os.path.join(base, rel_path)
+
+- Then open files via resource_path('config/car_rental.sql') etc.
+
+6) Troubleshooting
+------------------
+- Missing module error -> add --hidden-import=<module>
+- Can't find .env or car_rental.sql -> ensure they exist and are listed in add-data
+- MySQL SSL/cert issues -> pip install certifi and/or add --hidden-import=certifi
+```
+
+**build_windows.bat**
+```bat
+pyinstaller ^
+  --onefile ^
+  --clean ^
+  --name CarRentalCLI ^
+  --paths . ^
+  --hidden-import=controllers.car_controller ^
+  --hidden-import=controllers.user_controller ^
+  --hidden-import=services.userservice ^
+  --hidden-import=services.booking_service ^
+  --hidden-import=services.payment_service ^
+  --hidden-import=services.qrcode_service ^
+  --hidden-import=utils.sessions ^
+  --hidden-import=utils.auth ^
+  --hidden-import=utils.validators ^
+  --hidden-import=config.database ^
+  --hidden-import=config.paths ^
+  --hidden-import=mysql.connector ^
+  --add-data ".env;." ^
+  --add-data "config\car_rental.sql;config" ^
+  main.py
+```
+
+---
+
 ## 🧰 Troubleshooting
 
 - **ImportError (relative imports)** → use absolute imports or run as module.
@@ -681,4 +815,10 @@ mysql-connector-python>=8.3.0
 bcrypt>=4.1.2
 qrcode>=7.4.2
 qrcode-terminal>=0.8
+
+# --- Dev/Test ---
+pytest>=8.0.0
+pytest-cov>=5.0.0
+python-dotenv>=1.0.1
+
 ```

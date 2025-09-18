@@ -1,12 +1,17 @@
 # services/booking_workflow.py
 from contextlib import closing
 from decimal import Decimal
-from ..config.database import get_connection
-from ..services.payment_service import PaymentService
-from ..services.qrcode_service import QRService
-from ..utils.pricing import compute_total
+from config.database import DatabaseConnection
+from services.payment_service import PaymentService
+from services.qrcode_service import QRService
+from utils.pricing import compute_total
 
 class BookingWorkflow:
+    def __init__(self, db: DatabaseConnection|None = None):
+        self.db = db or DatabaseConnection()
+        self.payment_service = PaymentService(self.db)
+        self.qr_service = QRService(self.db)
+
     """
     Encapsulates side-effects for booking approval:
     - set approved status/approved_by (tx)
@@ -15,10 +20,9 @@ class BookingWorkflow:
     - generate/refresh QR token (outside tx to keep flow resilient)
     """
 
-    @staticmethod
-    def approve(booking_id: int, admin_user_id: int, days_valid: int = 7):
+    def approve(self,booking_id: int, admin_user_id: int, days_valid: int = 7):
         # 1) In-transaction work: approve + payment
-        with closing(get_connection()) as conn:
+        with closing(self.db.get_connection()) as conn:
             if not conn or not conn.is_connected():
                 return {"success": False, "message": "DB connection failed"}
 
@@ -74,7 +78,7 @@ class BookingWorkflow:
                     )
 
                 # Ensure there is a pending payment (idempotent create/update)
-                pay_res = PaymentService.create_or_update_pending(
+                pay_res = self.payment_service.create_or_update_pending(
                     booking_id, Decimal(str(total_cost))
                 )
                 if not pay_res.get("success"):
@@ -86,7 +90,7 @@ class BookingWorkflow:
                 conn.commit()
 
         # 2) Out-of-transaction work: generate/refresh QR (writes in its own call)
-        qr = QRService.generate_for_booking(booking_id, days_valid=days_valid)
+        qr = self.qr_service.generate_for_booking(booking_id, days_valid=days_valid)
         # Even if QR fails, approval+payment are already consistent
         if qr.get("success"):
             return {

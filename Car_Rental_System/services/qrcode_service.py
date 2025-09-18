@@ -2,16 +2,18 @@
 from datetime import datetime, timedelta
 import secrets
 from contextlib import closing
-from ..config.database import get_connection   # or: from config.database import get_connection
-from ..utils.qrcode_utils import print_qr_ascii as make_qr
+from config.database import DatabaseConnection
+from utils.qrcode_utils import print_qr_ascii as make_qr
 
 def _new_token(n: int = 32) -> str:
     return secrets.token_urlsafe(n)[:n]   # secure, URL-safe
 
 class QRService:
-    @staticmethod
-    def generate_for_booking(booking_id: int, days_valid: int = 7):
-        with closing(get_connection()) as conn:
+    def __init__(self, db: DatabaseConnection|None = None):
+        self.db = db or DatabaseConnection()
+
+    def generate_for_booking(self, booking_id: int, days_valid: int = 7):
+        with closing(self.db.get_connection()) as conn:
             if not conn or not conn.is_connected():
                 return {"success": False, "message": "DB connection failed"}
             with closing(conn.cursor(dictionary=True)) as cur:
@@ -37,9 +39,9 @@ class QRService:
                 print(f"QR Token:  {token}  (valid until {expires_at:%Y-%m-%d %H:%M})")
                 return {"success": True, "token": token, "png_path": png_path, "expires_at": expires_at}
 
-    @staticmethod
-    def get_by_booking(booking_id: int):
-        with closing(get_connection()) as conn:
+
+    def get_by_booking(self, booking_id: int):
+        with closing(self.db.get_connection()) as conn:
             if not conn or not conn.is_connected():
                 return {"success": False, "message": "DB connection failed"}
             with closing(conn.cursor(dictionary=True)) as cur:
@@ -47,9 +49,9 @@ class QRService:
                 row = cur.fetchone()
                 return {"success": bool(row), "qr": row} if row else {"success": False, "message": "No QR token for this booking"}
 
-    @staticmethod
-    def scan_pickup(token: str, admin_user_id: int):
-        with closing(get_connection()) as conn:
+    
+    def scan_pickup(self, token: str, admin_user_id: int):
+        with closing(self.db.get_connection()) as conn:
             if not conn or not conn.is_connected():
                 return {"success": False, "message": "DB connection failed"}
             with closing(conn.cursor(dictionary=True)) as cur:
@@ -76,9 +78,9 @@ class QRService:
                 conn.commit()
                 return {"success": True, "message": f"Booking {b['booking_id']} picked up (active)"}
 
-    @staticmethod
-    def scan_return(token: str, admin_user_id: int):
-        with closing(get_connection()) as conn:
+
+    def scan_return(self, token: str, admin_user_id: int):
+        with closing(self.db.get_connection()) as conn:
             if not conn or not conn.is_connected():
                 return {"success": False, "message": "DB connection failed"}
             with closing(conn.cursor(dictionary=True)) as cur:

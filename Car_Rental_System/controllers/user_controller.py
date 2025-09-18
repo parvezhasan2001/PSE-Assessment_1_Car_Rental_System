@@ -1,11 +1,22 @@
 from getpass import getpass
-from ..utils.sessions import SessionManager
-from ..services.userservice import UserService
+
+from config.database import DatabaseConnection
+from services.booking_service import BookingService
+from services.car_service import CarService
+from services.qrcode_service import QRService
+from services.userservice  import UserService
+from utils.sessions import SessionManager
 
 class UserController:
-    
-    @staticmethod
-    def _require_admin(current_user: dict, session_token: str):
+
+    def __init__(self, db: DatabaseConnection | None = None):
+        self.db = db or DatabaseConnection()
+        self.car_service = CarService(self.db)
+        self.booking_service = BookingService(self.db)
+        self.userservice = UserService(self.db)
+        self.qr_service = QRService(self.db)
+        
+    def _require_admin(self, current_user: dict, session_token: str):
         sess = SessionManager.get_user(session_token)
         if not sess:
             print("❌ Session expired or invalid. Please log in again."); return None
@@ -15,15 +26,16 @@ class UserController:
             print("❌ Admin only."); return None
         return sess
     
-    @staticmethod
-    def register_user():
-        name = input("Enter username: ")
-        email = input("Enter email: ")
-        password = input("Enter password: ")
-        role = input("Enter role (admin/customer): ")
-
+    def register_user(self):
+        name = input("Enter username: ").strip()
+        email = input("Enter email: ").strip()
+        password = getpass("Enter password: ")  # hide input
+        role = (input("Enter role (admin/customer): ").strip().lower() or "customer")
+        if role not in ("admin", "customer"):
+            print("ℹ️ Invalid role provided. Defaulting to 'customer'.")
+            role = "customer"
         try:
-            result = UserService.register_user(name, email, password, role)
+            result = self.userservice.register_user(name, email, password, role)
             if result["success"]:
                 print("✅", result["message"])
             else:
@@ -31,17 +43,15 @@ class UserController:
         except Exception as e:
             print("⚠️ Error during registration:", str(e))
 
-    @staticmethod
-    def login_user():
+    def login_user(self):
         email = input("Enter email: ").strip()
         password = getpass("Enter password: ")
 
-        result = UserService.login_user(email, password)
+        result = self.userservice.login_user(email, password)
         if not result or not result.get("success"):
             print("❌", (result or {}).get("message", "Login failed"))
             return result
 
-        # Create a 1-hour session for the logged-in user
         token = SessionManager.create(result["user"], ttl_sec=3600)
         result["session_token"] = token
 
@@ -53,11 +63,11 @@ class UserController:
 
         return result
     
-    @staticmethod
-    def list_customers(current_user: dict, session_token: str):
-        if not UserController._require_admin(current_user, session_token): return
+    
+    def list_customers(self, current_user: dict, session_token: str):
+        if not self._require_admin(current_user, session_token): return
         q = input("Search (name/email, Enter=all): ").strip() or None
-        res = UserService.list_customers(search=q)
+        res = self.userservice.list_customers(search=q)
         if not res.get("success"):
             print("❌", res.get("message")); return
         rows = res.get("customers", [])
