@@ -815,8 +815,6 @@ mysql-connector-python>=8.3.0
 bcrypt>=4.1.2
 qrcode>=7.4.2
 qrcode-terminal>=0.8
-
-# --- Dev/Test ---
 pytest>=8.0.0
 pytest-cov>=5.0.0
 python-dotenv>=1.0.1
