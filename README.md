@@ -146,7 +146,7 @@ Key technologies:
 
 - **Factory Method (documented)** for extensible entity creation (e.g., user/vehicle subtypes). The current CLI prioritizes services; factories can be added without refactoring.
 - **Singleton-like access** for DB via centralized `get_db_connection()` (scoped per call with context managers).
-- **Strategy-lite** for pricing via `utils/pricing.compute_total()` (plug tax/fees rules).
+- **Observer** to manage the booking status change simple hook methods are provided for future extension.
 
 ---
 
