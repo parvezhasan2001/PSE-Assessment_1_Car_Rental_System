@@ -653,22 +653,6 @@ The UML Diagrams are listed Below
 
 ---
 
-## 🔧 Software Evolution Plan (Task 3)
-
-- **Maintenance**
-  - Structured logging (add a `utils/logging.py`); error handling with clear messages.
-  - Unit tests for auth, pricing, booking state transitions.
-  - Linting & CI (flake8/black + GitHub Actions).
-- **Versioning**
-  - Semantic Versioning: `MAJOR.MINOR.PATCH`.
-  - Maintain a `CHANGELOG.md`.
-- **Backward Compatibility**
-  - Additive schema changes first; deprecate before remove.
-  - Feature flags for risky features.
-  - Migration scripts in `/db/migrations` (use timestamps in filenames).
-
----
-
 ## 🧪 Testing
 
 This project uses **pytest**. The default tests focus on **utility correctness** (auth & pricing). Service/DB tests are optional and can be enabled with a dedicated **test database**.
