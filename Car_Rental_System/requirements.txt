@@ -10,15 +10,17 @@ pip install bcrypt
 # For QR code generation
 pip install qrcode_terminal
 
-To install all the dependencies, run the following command:
 
-```bash
-pip install -r requirements.txt
-```
 
 To Run the Application:
 
-cd "F:/MSE800/Assessment-1"
-python -m Car_Rental_System.main
+cd "F:/MSE800/Assessment-1/Car_Rental_System"
+python -m main.py
 
+mysql-connector-python>=8.3.0
+bcrypt>=4.1.2
+qrcode>=7.4.2
 qrcode-terminal>=0.8
+pytest>=8.0.0
+pytest-cov>=5.0.0
+python-dotenv>=1.0.1
